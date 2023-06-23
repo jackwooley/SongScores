@@ -20,7 +20,7 @@ CLIENT_SECRET = config.secret  # secret, supplied from spotify for developers
 def main():
     access_token, headers = auth_stuff()
 
-    playlist = get_all_playlist_ids(FRIENDS[2], headers)
+    playlist = get_all_playlist_ids(FRIENDS[0], headers)
 
     song_and_artist_ids = playlist_processor(playlist)
 
@@ -28,7 +28,8 @@ def main():
     
     artist_popularities = get_popularities(song_and_artist_ids.values(), headers)
 
-    return
+
+    return song_popularities
 
 
 def auth_stuff():
@@ -59,11 +60,10 @@ def get_all_playlist_ids(user, headers_):
     for i in range(0, len(returned.json()['items'])):
         all_playlists.append(returned.json()['items'][i]['id'])
 
-    print('swag')
-
-    playlist_ = requests.get(f'{BASE_URL}playlists/{all_playlists[0]}/tracks', headers=headers_)
+    playlist_ = requests.get(f'{BASE_URL}playlists/{all_playlists[8]}/tracks', headers=headers_)
 
     return playlist_
+
 
 def playlist_processor(playlist_info):
     # playlist info will be what's returned from the api call in get_all_playlist_ids
@@ -83,21 +83,8 @@ def playlist_processor(playlist_info):
             # print(artists[j]['name'])
             artist_id_values.append(artists[j]['id'])
             song_and_artist_ids_[songs[i]['track']['id']] = artist_id_values
-    print('swag')
 
-    # artists[1]['id'
     return song_and_artist_ids_
-
-
-def get_popularities(id_list: list, headers_: dict):
-
-    ids_new = nest_id_lists(song_ids)
-    
-    for i in ids_new:
-        ### TODO -- loop through new list of lists to get info on 50 tracks at a time
-        song_pop_short = requests.get(f'{BASE_URL}tracks/{some_set_of_50_ids}', headers=headers_)
-    popularities_ = ''
-    return popularities_
 
 
 def nest_id_lists(id_list: list):
@@ -113,8 +100,8 @@ def nest_id_lists(id_list: list):
         nested_list = []
 
         for i in range(0, int(how_many_times)):
-            nested_list.append(id_list[start:end])
-            start += 50  # increment to get the next values starting at 
+            nested_list.append(list(id_list)[start:end])
+            start += 50  # increment to get the next values starting at previous end
             if end + 50 > len(id_list):
                 end = len(id_list)
             else:
@@ -123,9 +110,25 @@ def nest_id_lists(id_list: list):
         song_ids_ = nested_list
 
     else:
-        song_ids_ = id_list
+        song_ids_ = []
+        song_ids_.append(id_list)
 
-    return id_list
+    return song_ids_
+
+
+def get_popularities(id_list: list, headers_: dict):
+
+    ids_new = nest_id_lists(id_list)
+    
+    for list_ in ids_new:
+        ### TODO -- loop through new list of lists to get info on 50 tracks at a time
+        subset_of_ids = str(list_).strip('[').strip(']').replace(' ', '')
+
+        ### TODO -- set up a way to handle whether it's receiving track or artist ids
+        song_pop_short = requests.get(f'{BASE_URL}tracks/{subset_of_ids}', headers=headers_)
+        
+    popularities_ = ''
+    return popularities_
 
 
 if __name__=='__main__':
