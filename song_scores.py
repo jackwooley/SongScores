@@ -24,18 +24,26 @@ def main():
 
     song_ids, album_ids, artist_ids = playlist_processor(playlist)
 
-    # album_ids = get_all_album_ids(song_and_artist_ids.keys(), headers)
-
     song_popularities = get_popularities(song_ids, headers, 'tracks', 50)
     
-    # artist_popularities = get_popularities(artist_ids, headers, 'artists', 50)  # keeps failing because of too many artists being requested
+    artist_popularities = get_popularities(artist_ids, headers, 'artists', 50)  # keeps failing because of too many artists being requested
+
+    ### TODO -- double-check the return statment on this function
+    # artist_followers = get_artist_follower_count(artist_ids, headers, 50)
 
     album_popularities = get_popularities(album_ids, headers, 'albums', 20)
 
-    # quick check to see song popularity relative to album popularity on this album
     ### TODO -- come up with a good way of quantifying the relationship between albums and songs
-    summ = sum((np.array(song_popularities) - np.array(album_popularities)) > 5)
+    # what's currently in here doesn't make much sense lol
+    song_vec = np.array(song_popularities) / 100
+    artist_vec = np.array(artist_popularities) / 100
+    # artist_followers_vec = np.array(artist_followers).astype(float)
+    album_vec = np.array(album_popularities) / 100
 
+    relative_song_popularity_album = song_vec / album_vec  # relative to how popular the album is, how popular is the song?
+    relative_song_popularity_artist = song_vec / artist_vec  # relative to how popular the artist is, how popular is the song?
+    # relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
+    
     print('swag')
 
     return song_popularities
@@ -60,7 +68,7 @@ def auth_stuff():
     return access_token_, headers_  # does this need the access_token_ to be returned?
 
 
-def get_all_playlist_ids(user, headers_):
+def get_all_playlist_ids(user: str, headers_: dict):
     # for now, user should be an element in the FRIENDS list
     returned = requests.get(f'{BASE_URL}users/{user}/playlists', headers=headers_)
 
@@ -88,12 +96,13 @@ def playlist_processor(playlist_info):
         song_ids.append(songs[i]['track']['id'])  # add all the song ids to a list
         album_ids.append(songs[i]['track']['album']['id'])  # add all the album ids to a list
         artists = songs[i]['track']['artists']  # add all the artist ids to a list
-        artist_id_subsets = []
+        # artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
+        artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
+
+        # for j in range(0, len(artists)):
+        #     artist_id_subsets.append(artists[j]['id'])
         
-        for j in range(0, len(artists)):  # double-check this - should it be len(artists) or len(songs)
-            artist_id_subsets.append(artists[j]['id'])
-        
-        artist_ids.append(artist_id_subsets)
+        # artist_ids.append(artist_id_subsets)
 
     return song_ids, album_ids, artist_ids
 
@@ -158,6 +167,23 @@ def get_popularities(id_list: list, headers_: dict, endpoint: str, batch_size: i
 
     # popularities_ = ''
     return popularity_list
+
+
+def get_artist_follower_count(id_list: list, headers_: dict, batch_size: int):
+    # almost identical to the get popularity one, but it returns # of an artist's followers as opposed to popularity
+    ids_new = nest_id_lists(id_list, batch_size)
+
+    followers_list = []
+
+    for list_ in ids_new:
+        subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',').replace('\'], [\'', '\',\'')
+
+        followers_raw = requests.get(f'{BASE_URL}artists/?ids={subset_of_ids}', headers=headers_)
+        for j in range(0, len(list_)):
+            followers_list.append(followers_raw.json()['artists'][j]['followers'])
+
+    # popularities_ = ''
+    return followers_list
 
 
 if __name__=='__main__':
