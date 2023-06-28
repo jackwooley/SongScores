@@ -29,7 +29,7 @@ def main():
     artist_popularities = get_popularities(artist_ids, headers, 'artists', 50)  # keeps failing because of too many artists being requested
 
     ### TODO -- double-check the return statment on this function
-    # artist_followers = get_artist_follower_count(artist_ids, headers, 50)
+    artist_followers = get_artist_follower_count(artist_ids, headers, 50)
 
     album_popularities = get_popularities(album_ids, headers, 'albums', 20)
 
@@ -37,12 +37,12 @@ def main():
     # what's currently in here doesn't make much sense lol
     song_vec = np.array(song_popularities) / 100
     artist_vec = np.array(artist_popularities) / 100
-    # artist_followers_vec = np.array(artist_followers).astype(float)
+    artist_followers_vec = np.array(artist_followers).astype(float)
     album_vec = np.array(album_popularities) / 100
 
     relative_song_popularity_album = song_vec / album_vec  # relative to how popular the album is, how popular is the song?
     relative_song_popularity_artist = song_vec / artist_vec  # relative to how popular the artist is, how popular is the song?
-    # relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
+    relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
     
     print('swag')
 
@@ -96,13 +96,13 @@ def playlist_processor(playlist_info):
         song_ids.append(songs[i]['track']['id'])  # add all the song ids to a list
         album_ids.append(songs[i]['track']['album']['id'])  # add all the album ids to a list
         artists = songs[i]['track']['artists']  # add all the artist ids to a list
-        # artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
-        artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
+        artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
+        # artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
 
-        # for j in range(0, len(artists)):
-        #     artist_id_subsets.append(artists[j]['id'])
+        for j in range(0, len(artists)):
+            artist_id_subsets.append(artists[j]['id'])
         
-        # artist_ids.append(artist_id_subsets)
+        artist_ids.append(artist_id_subsets)
 
     return song_ids, album_ids, artist_ids
 
@@ -152,13 +152,27 @@ def get_popularities(id_list: list, headers_: dict, endpoint: str, batch_size: i
     #  endpoint should be either 'tracks', 'artists', or 'albums'
     if endpoint not in ['tracks', 'artists', 'albums']:
         print('Incorrect value entered for endpoint parameter. Make sure it is either "tracks", "artists", or "albums".')
-
-    ids_new = nest_id_lists(id_list, batch_size)
+    if endpoint != 'artists':
+        ids_new = nest_id_lists(id_list, batch_size)
+    else:
+        ids_new = []
+        id_subsets = []
+        for i in id_list:  ### TODO -- double-check this part. is it doing what you wanted it to do??
+                            # make sure it's actually appending everytihng to ids_new. it might need another loop around it?
+            if (len(id_subsets) + len(i)) <= 20:
+                id_subsets = [*id_subsets, *i]
+            ids_new.append(id_subsets)
+            print('')
+        print('')
 
     popularity_list = []
 
     for list_ in ids_new:
-        subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',').replace('\'], [\'', '\',\'')
+        if type(list_[0]) == list:
+            subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',').replace('\'], [\'', '\',\'')
+        else:
+            subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
+
 
         popularities_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
         for j in range(0, len(list_)):
@@ -180,7 +194,7 @@ def get_artist_follower_count(id_list: list, headers_: dict, batch_size: int):
 
         followers_raw = requests.get(f'{BASE_URL}artists/?ids={subset_of_ids}', headers=headers_)
         for j in range(0, len(list_)):
-            followers_list.append(followers_raw.json()['artists'][j]['followers'])
+            followers_list.append(followers_raw.json()['artists'][j]['followers']['total'])
 
     # popularities_ = ''
     return followers_list
