@@ -26,7 +26,8 @@ def main():
 
     song_popularities = get_popularities(song_ids, headers, 'tracks', 50)
     
-    artist_popularities = get_popularities(artist_ids, headers, 'artists', 50)  # keeps failing because of too many artists being requested
+    # artist_popularities = get_popularities(artist_ids, headers, 'artists', 50)  # keeps failing because of too many artists being requested
+    artist_popularities = get_artist_popularities(artist_ids, headers)
 
     ### TODO -- double-check the return statment on this function
     artist_followers = get_artist_follower_count(artist_ids, headers, 50)
@@ -149,37 +150,54 @@ def get_all_album_ids(song_list: list, headers_):
 
 
 def get_popularities(id_list: list, headers_: dict, endpoint: str, batch_size: int):
-    #  endpoint should be either 'tracks', 'artists', or 'albums'
-    if endpoint not in ['tracks', 'artists', 'albums']:
-        print('Incorrect value entered for endpoint parameter. Make sure it is either "tracks", "artists", or "albums".')
-    if endpoint != 'artists':
+    #  endpoint should be either 'tracks' or 'albums'
+    try:
         ids_new = nest_id_lists(id_list, batch_size)
-    else:
-        ids_new = []
-        id_subsets = []
-        for i in id_list:  ### TODO -- double-check this part. is it doing what you wanted it to do??
-                            # make sure it's actually appending everytihng to ids_new. it might need another loop around it?
-            if (len(id_subsets) + len(i)) <= 20:
-                id_subsets = [*id_subsets, *i]
-            ids_new.append(id_subsets)
-            print('')
-        print('')
+        # else:
+        #     ids_new = []
+        #     id_subsets = []
+        #     for i in id_list:  ### TODO -- double-check this part. is it doing what you wanted it to do??
+        #                         # make sure it's actually appending everytihng to ids_new. it might need another loop around it?
+        #         if (len(id_subsets) + len(i)) <= 20:
+        #             id_subsets = [*id_subsets, *i]
+        #         ids_new.append(id_subsets)
+        #         print('')
+        #     print('')
 
-    popularity_list = []
+        popularity_list = []
 
-    for list_ in ids_new:
-        if type(list_[0]) == list:
-            subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',').replace('\'], [\'', '\',\'')
-        else:
+        for list_ in ids_new:
+            # if type(list_[0]) == list:
+            #     subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',').replace('\'], [\'', '\',\'')
+            # else:
             subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
 
+            popularities_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
+            for j in range(0, len(list_)):
+                popularity_list.append(popularities_raw.json()[endpoint][j]['popularity'])
+    except KeyError as k:
+        print(f'{k=}. Did you use the wrong endpoint?')
 
-        popularities_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
+    return popularity_list
+
+
+def get_artist_popularities(id_list: list, headers_: dict):
+    
+    popularity_list = []
+
+    for list_ in id_list:
+        subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')
+
+        popularities_raw = requests.get(f'{BASE_URL}artists/?ids={subset_of_ids}', headers=headers_)
+
+        small_list = []
         for j in range(0, len(list_)):
-            popularity_list.append(popularities_raw.json()[endpoint][j]['popularity'])
-    print('swag')
+            small_list.append(popularities_raw.json()['artists'][j]['popularity'])
 
-    # popularities_ = ''
+        popularity_list.append(small_list)
+
+    print('dog')
+
     return popularity_list
 
 
