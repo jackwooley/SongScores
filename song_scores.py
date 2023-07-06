@@ -4,9 +4,9 @@ import requests
 import config
 BASE_URL = 'https://api.spotify.com/v1/'
 AUTH_URL = 'https://accounts.spotify.com/api/token'
-FRIENDS = config.friends  # a list of user_ids
-CLIENT_ID = config.id_  # id, supplied from spotify for developers
-CLIENT_SECRET = config.secret  # secret, supplied from spotify for developers
+# FRIENDS = config.friends  # a list of user_ids
+# CLIENT_ID = config.id_  # id, supplied from spotify for developers; replace with your own
+# CLIENT_SECRET = config.secret  # secret, supplied from spotify for developers; replace with your own
 
 ### Roadmap
 # - with a user's id, get a list of their playlists
@@ -17,58 +17,73 @@ CLIENT_SECRET = config.secret  # secret, supplied from spotify for developers
 ### TODO -- add type hints to functions
 
 
-def main():
-    access_token, headers = auth_stuff()
+def main(user_id: str, client_id: str, client_secret: str):
+    access_token, headers = auth_stuff(client_id, client_secret)
 
-    playlist = get_all_playlist_ids(FRIENDS[0], headers)
+    playlist = get_all_playlist_ids(user_id, headers)
 
-    song_ids, album_ids, artist_ids = playlist_processor(playlist)
-
-    song_popularities = get_popularities(song_ids, headers, 'tracks', 50)
-    
-    artist_popularities = get_artist_popularities(artist_ids, headers)
-
-    artist_followers = get_artist_follower_count(artist_ids, headers, 50)
-
-    album_popularities = get_popularities(album_ids, headers, 'albums', 20)
-
-    # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
-    # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
-
-    ### TODO -- come up with a good way of quantifying the relationship between albums and songs
-    # what's currently in here doesn't make much sense lol
-    # something like the following might work:
-    # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
-    # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
+    song_ids_all, album_ids_all, artist_ids_all = [], [], []
+    for i in playlist:
+        song_ids, album_ids, artist_ids = playlist_processor(i, headers)
+        song_ids_all.append(song_ids)
+        album_ids_all.append(album_ids)
+        artist_ids_all.append(artist_ids)
 
     metrics = []
-    # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
-    for i in range(0, len(song_ids)):            
-        ith_song_metric = np.log((song_popularities[i] + .1)) + np.log((np.mean(np.array(artist_followers[i])) + .1)) + np.log((album_popularities[i] + .1))
-        metrics.append(ith_song_metric)
+
+    ### TODO -- basic functionality works but this loop needs lots of work to run correctly/successfully
+    ### 
+    for i in range(0, len(song_ids_all)):
+        try:
+            song_popularities = get_popularities(song_ids_all[i], headers, 'tracks', 50)
+            
+            artist_popularities = get_artist_popularities(artist_ids_all[i], headers)
+
+            artist_followers = get_artist_follower_count(artist_ids_all[i], headers, 50)
+
+            album_popularities = get_popularities(album_ids_all[i], headers, 'albums', 20)
+
+            # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
+            # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
+
+            ### TODO -- come up with a good way of quantifying the relationship between albums and songs
+            # what's currently in here doesn't make much sense lol
+            # something like the following might work:
+            # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
+            # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
+
+            # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
+            for j in range(0, len(song_ids)):
+                jth_song_metric = np.log((song_popularities[j] + .1)) + np.log((artist_popularities[j] + .1))
+                + np.log((np.mean(np.array(artist_followers[j])) + .1)) + np.log((album_popularities[j] + .1))
+                metrics.append(jth_song_metric)
+        except TypeError as te:
+            print(f'iteration {i} had an error: {te=}')
     
     np.array(metrics)
 
-    song_vec = np.array(song_popularities) / 100
-    artist_vec = np.array(artist_popularities) / 100
-    artist_followers_vec = np.log(np.array(artist_followers).astype(float))
-    album_vec = np.array(album_popularities) / 100
+    return np.mean(metrics)
 
-    relative_song_popularity_album = song_vec / album_vec  # relative to how popular the album is, how popular is the song?
-    relative_song_popularity_artist = song_vec / artist_vec  # relative to how popular the artist is, how popular is the song?
-    relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
+    # song_vec = np.array(song_popularities) / 100
+    # artist_vec = np.array(artist_popularities) / 100
+    # artist_followers_vec = np.log(np.array(artist_followers).astype(float))
+    # album_vec = np.array(album_popularities) / 100
+
+    # relative_song_popularity_album = song_vec / album_vec  # relative to how popular the album is, how popular is the song?
+    # relative_song_popularity_artist = song_vec / artist_vec  # relative to how popular the artist is, how popular is the song?
+    # relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
     
-    print('swag')
+    # print('swag')
 
-    return song_popularities
+    # return song_popularities
 
 
-def auth_stuff():
+def auth_stuff(client_id: str, client_secret: str):
     
     auth_response = requests.post(AUTH_URL, {
         'grant_type': 'client_credentials',
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
+        'client_id': client_id,
+        'client_secret': client_secret,
     })
     auth_response_data = auth_response.json()
 
@@ -82,21 +97,21 @@ def auth_stuff():
     return access_token_, headers_  # does this need the access_token_ to be returned?
 
 
-def get_all_playlist_ids(user: str, headers_: dict):
+def get_all_playlist_ids(user: str, headers_: dict)->list:
     # for now, user should be an element in the FRIENDS list
-    returned = requests.get(f'{BASE_URL}users/{user}/playlists', headers=headers_)
+    returned = requests.get(f'{BASE_URL}users/{user}/playlists?limit=50', headers=headers_)
 
     # get a list of their playlist ids (will be used soon to call dat aon their songs that compose each playlist)
     all_playlists = []
     for i in range(0, len(returned.json()['items'])):
         all_playlists.append(returned.json()['items'][i]['id'])
 
-    playlist_ = requests.get(f'{BASE_URL}playlists/{all_playlists[8]}/tracks', headers=headers_)
-
-    return playlist_
+    return all_playlists
 
 
-def playlist_processor(playlist_info):
+def playlist_processor(playlist_id: str, headers_: dict):
+    playlist_info = requests.get(f'{BASE_URL}playlists/{playlist_id}/tracks', headers=headers_)
+
     # playlist info will be what's returned from the api call in get_all_playlist_ids
     songs = playlist_info.json()['items']
 
@@ -104,17 +119,29 @@ def playlist_processor(playlist_info):
     album_ids = []
     artist_ids = []
     # song_and_artist_ids_ = {}
-    for i in range(0, len(songs)):
-        song_ids.append(songs[i]['track']['id'])  # add all the song ids to a list
-        album_ids.append(songs[i]['track']['album']['id'])  # add all the album ids to a list
-        artists = songs[i]['track']['artists']  # add all the artist ids to a list
-        artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
-        # artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
 
-        for j in range(0, len(artists)):
-            artist_id_subsets.append(artists[j]['id'])
-        
-        artist_ids.append(artist_id_subsets)
+    ### TODO -- error handling needs some love. this is a really sloppy fix rn.
+    try:
+        for i in range(0, len(songs)):
+            song_ids.append(songs[i]['track']['id'])  # add all the song ids to a list
+            album_ids.append(songs[i]['track']['album']['id'])  # add all the album ids to a list
+            artists = songs[i]['track']['artists']  # add all the artist ids to a list
+            artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
+            # artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
+
+            for j in range(0, len(artists)):
+                artist_id_subsets.append(artists[j]['id'])
+            
+            artist_ids.append(artist_id_subsets)
+    
+    except TypeError as te:
+        print(f'iteration {i} caused a problem: {te=}')
+        if len(song_ids) == i-1:
+            song_ids[i] = None
+        if len(album_ids) == i-1:
+            album_ids[i] = None
+        if len(artist_ids) == i-1:
+            artist_ids[i] = None
 
     return song_ids, album_ids, artist_ids
 
@@ -265,4 +292,4 @@ def get_artists_top_songs(id_list: list, headers_: dict, batch_size: int):
     return clean_top_songs
 
 if __name__=='__main__':
-    main()
+    main(config.friends[0], config.id_, config.secret)
