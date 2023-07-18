@@ -20,49 +20,54 @@ AUTH_URL = 'https://accounts.spotify.com/api/token'
 def main(user_id: str, client_id: str, client_secret: str):
     access_token, headers = auth_stuff(client_id, client_secret)
 
-    playlist = get_all_playlist_ids(user_id, headers)
+    playlists = get_all_playlist_ids(user_id, headers)
 
     song_ids_all, album_ids_all, artist_ids_all = [], [], []
-    for i in playlist:
-        song_ids, album_ids, artist_ids = playlist_processor(i, headers)
+    
+    for i in range(0, len(playlists)):
+        song_ids, album_ids, artist_ids = playlist_processor(playlists[i], headers)
         song_ids_all.append(song_ids)
         album_ids_all.append(album_ids)
         artist_ids_all.append(artist_ids)
 
-    metrics = []
+    medians = []
 
     ### TODO -- basic functionality works but this loop needs lots of work to run correctly/successfully
     ### 
     for i in range(0, len(song_ids_all)):
-        try:
-            song_popularities = get_popularities(song_ids_all[i], headers, 'tracks', 50)
-            
-            artist_popularities = get_artist_popularities(artist_ids_all[i], headers)
+        song_popularities = get_popularities(song_ids_all[i], headers, 'tracks', 50)
+        
+        artist_popularities = get_artist_popularities(artist_ids_all[i], headers)
 
-            artist_followers = get_artist_follower_count(artist_ids_all[i], headers, 50)
+        artist_followers = get_artist_follower_count(artist_ids_all[i], headers, 50)
 
-            album_popularities = get_popularities(album_ids_all[i], headers, 'albums', 20)
+        album_popularities = get_popularities(album_ids_all[i], headers, 'albums', 20)
 
-            # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
-            # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
+        # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
+        # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
 
-            ### TODO -- come up with a good way of quantifying the relationship between albums and songs
-            # what's currently in here doesn't make much sense lol
-            # something like the following might work:
-            # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
-            # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
+        ### TODO -- come up with a good way of quantifying the relationship between albums and songs
+        # what's currently in here doesn't make much sense lol
+        # something like the following might work:
+        # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
+        # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
+        # OK SO - the way it's set up is not scaled 1-100 or something like that. i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) (use a base 10 log probably - check what numpy's is)
 
-            # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
-            for j in range(0, len(song_ids)):
-                jth_song_metric = np.log((song_popularities[j] + .1)) + np.log((artist_popularities[j] + .1))
-                + np.log((np.mean(np.array(artist_followers[j])) + .1)) + np.log((album_popularities[j] + .1))
-                metrics.append(jth_song_metric)
-        except TypeError as te:
-            print(f'iteration {i} had an error: {te=}')
+        # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
+        all_raw_metrics = []
+        for j in range(0, len(song_popularities)):
+            jth_song_metric = np.log((song_popularities[j] + .1))
+            + np.log((np.mean(artist_popularities[j]) + .1))
+            + np.log((np.mean(np.array(artist_followers[j])) + .1))
+            + np.log((album_popularities[j] + .1))
+            # append all metric scores to a list for each playlist
+            all_raw_metrics.append(jth_song_metric)
+        
+        medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
     
-    np.array(metrics)
+    np.array(medians)
 
-    return np.mean(metrics)
+    return np.mean(medians)
 
     # song_vec = np.array(song_popularities) / 100
     # artist_vec = np.array(artist_popularities) / 100
@@ -134,7 +139,7 @@ def playlist_processor(playlist_id: str, headers_: dict):
             
             artist_ids.append(artist_id_subsets)
     
-    except TypeError as te:
+    except TypeError as te:  # TODO -- is there a better way to deal with empty lists being returned
         print(f'iteration {i} caused a problem: {te=}')
         if len(song_ids) == i-1:
             song_ids[i] = None
