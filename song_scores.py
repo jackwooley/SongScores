@@ -61,11 +61,14 @@ def main(user_id: str, client_id: str, client_secret: str):
             + np.log((np.mean(np.array(artist_followers[j])) + .1))
             + np.log((album_popularities[j] + .1))
             # append all metric scores to a list for each playlist
-            all_raw_metrics.append(jth_song_metric)
+            if not np.isnan(jth_song_metric):
+                all_raw_metrics.append(jth_song_metric)
         
         medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
     
     np.array(medians)
+
+    print(f'{np.mean(medians)}')
 
     return np.mean(medians)
 
