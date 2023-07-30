@@ -20,15 +20,17 @@ AUTH_URL = 'https://accounts.spotify.com/api/token'
 def main(user_id: str, client_id: str, client_secret: str):
     access_token, headers = auth_stuff(client_id, client_secret)
 
-    playlists = get_all_playlist_ids(user_id, headers)
+    # playlists = get_all_playlist_ids(user_id, headers)
+    playlists = ['1TWD0ULOlV2EEuszrlOsRh']
 
     song_ids_all, album_ids_all, artist_ids_all = [], [], []
     
     for i in range(0, len(playlists)):
         song_ids, album_ids, artist_ids = playlist_processor(playlists[i], headers)
-        song_ids_all.append(song_ids)
-        album_ids_all.append(album_ids)
-        artist_ids_all.append(artist_ids)
+        if len(song_ids) > 0:
+            song_ids_all.append(song_ids)
+            album_ids_all.append(album_ids)
+            artist_ids_all.append(artist_ids)
 
     medians = []
 
@@ -51,24 +53,37 @@ def main(user_id: str, client_id: str, client_secret: str):
         # something like the following might work:
         # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
         # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
-        # OK SO - the way it's set up is not scaled 1-100 or something like that. i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) (use a base 10 log probably - check what numpy's is)
+        # OK SO - the way it's set up is not scaled 1-100 or something like that. 
+        # i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) 
+        # (use a base 10 log probably - check what numpy's is)
 
         # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
         all_raw_metrics = []
         for j in range(0, len(song_popularities)):
-            jth_song_metric = np.log((song_popularities[j] + .1))
-            + np.log((np.mean(artist_popularities[j]) + .1))
-            + np.log((np.mean(np.array(artist_followers[j])) + .1))
-            + np.log((album_popularities[j] + .1))
+            # jth_song_metric = np.log((song_popularities[j] + .1))
+            # + np.log((np.mean(artist_popularities[j]) + .1))
+            # + np.log((np.mean(np.array(artist_followers[j])) + .1))
+            # + np.log((album_popularities[j] + .1))
+            jth_song_metric = sum(
+                [(100 - song_popularities[j]),
+                (100 - np.mean(artist_popularities[j])),
+                (100 - np.mean(album_popularities[j])),
+                ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
+            ) / 4
             # append all metric scores to a list for each playlist
-            if not np.isnan(jth_song_metric):
-                all_raw_metrics.append(jth_song_metric)
+            # if not np.isnan(jth_song_metric):
+            #     all_raw_metrics.append(jth_song_metric)
+            all_raw_metrics.append(jth_song_metric)
         
         medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
     
-    np.array(medians)
+    # mask = np.isnan(np.array(medians)) * 1
+    
+    # medians_clean = medians[mask[mask == 0]]
 
-    print(f'{np.mean(medians)}')
+    # medians_clean = np.array(medians_clean)
+
+    print(f'For the playlist analyzed, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
 
     return np.mean(medians)
 
