@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import requests
 import config
+import sys
+import re
 BASE_URL = 'https://api.spotify.com/v1/'
 AUTH_URL = 'https://accounts.spotify.com/api/token'
 # FRIENDS = config.friends  # a list of user_ids
@@ -17,73 +19,74 @@ AUTH_URL = 'https://accounts.spotify.com/api/token'
 ### TODO -- add type hints to functions
 
 
-def main(user_id: str, client_id: str, client_secret: str):
+def main(playlist_ids: str, client_id: str, client_secret: str):
     access_token, headers = auth_stuff(client_id, client_secret)
 
     # playlists = get_all_playlist_ids(user_id, headers)
-    playlists = ['1TWD0ULOlV2EEuszrlOsRh']
+    
+    playlist_id_list = re.sub('\s*', '', playlist_ids).split(',')
 
     song_ids_all, album_ids_all, artist_ids_all = [], [], []
     
-    for i in range(0, len(playlists)):
-        song_ids, album_ids, artist_ids = playlist_processor(playlists[i], headers)
+    for i in range(0, len(playlist_id_list)):
+        song_ids, album_ids, artist_ids = playlist_processor(playlist_id_list[i], headers)
         if len(song_ids) > 0:
             song_ids_all.append(song_ids)
             album_ids_all.append(album_ids)
             artist_ids_all.append(artist_ids)
 
-    medians = []
+        medians = []
 
-    ### TODO -- basic functionality works but this loop needs lots of work to run correctly/successfully
-    ### 
-    for i in range(0, len(song_ids_all)):
-        song_popularities = get_popularities(song_ids_all[i], headers, 'tracks', 50)
+        ### TODO -- basic functionality works but this loop needs lots of work to run correctly/successfully
+        ### 
+        for k in range(0, len(song_ids_all)):
+            song_popularities = get_popularities(song_ids_all[k], headers, 'tracks', 50)
+            
+            artist_popularities = get_artist_popularities(artist_ids_all[k], headers)
+
+            artist_followers = get_artist_follower_count(artist_ids_all[k], headers, 50)
+
+            album_popularities = get_popularities(album_ids_all[k], headers, 'albums', 20)
+
+            # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
+            # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
+
+            ### TODO -- come up with a good way of quantifying the relationship between albums and songs
+            # what's currently in here doesn't make much sense lol
+            # something like the following might work:
+            # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
+            # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
+            # OK SO - the way it's set up is not scaled 1-100 or something like that. 
+            # i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) 
+            # (use a base 10 log probably - check what numpy's is)
+
+            # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
+            all_raw_metrics = []
+            for j in range(0, len(song_popularities)):
+                # jth_song_metric = np.log((song_popularities[j] + .1))
+                # + np.log((np.mean(artist_popularities[j]) + .1))
+                # + np.log((np.mean(np.array(artist_followers[j])) + .1))
+                # + np.log((album_popularities[j] + .1))
+                jth_song_metric = sum(
+                    [(100 - song_popularities[j]),
+                    (100 - np.mean(artist_popularities[j])),
+                    (100 - np.mean(album_popularities[j])),
+                    ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
+                ) / 4
+                # append all metric scores to a list for each playlist
+                # if not np.isnan(jth_song_metric):
+                #     all_raw_metrics.append(jth_song_metric)
+                all_raw_metrics.append(jth_song_metric)
+            
+            medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
         
-        artist_popularities = get_artist_popularities(artist_ids_all[i], headers)
-
-        artist_followers = get_artist_follower_count(artist_ids_all[i], headers, 50)
-
-        album_popularities = get_popularities(album_ids_all[i], headers, 'albums', 20)
-
-        # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
-        # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
-
-        ### TODO -- come up with a good way of quantifying the relationship between albums and songs
-        # what's currently in here doesn't make much sense lol
-        # something like the following might work:
-        # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
-        # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
-        # OK SO - the way it's set up is not scaled 1-100 or something like that. 
-        # i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) 
-        # (use a base 10 log probably - check what numpy's is)
-
-        # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
-        all_raw_metrics = []
-        for j in range(0, len(song_popularities)):
-            # jth_song_metric = np.log((song_popularities[j] + .1))
-            # + np.log((np.mean(artist_popularities[j]) + .1))
-            # + np.log((np.mean(np.array(artist_followers[j])) + .1))
-            # + np.log((album_popularities[j] + .1))
-            jth_song_metric = sum(
-                [(100 - song_popularities[j]),
-                (100 - np.mean(artist_popularities[j])),
-                (100 - np.mean(album_popularities[j])),
-                ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
-            ) / 4
-            # append all metric scores to a list for each playlist
-            # if not np.isnan(jth_song_metric):
-            #     all_raw_metrics.append(jth_song_metric)
-            all_raw_metrics.append(jth_song_metric)
+        # mask = np.isnan(np.array(medians)) * 1
         
-        medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
-    
-    # mask = np.isnan(np.array(medians)) * 1
-    
-    # medians_clean = medians[mask[mask == 0]]
+        # medians_clean = medians[mask[mask == 0]]
 
-    # medians_clean = np.array(medians_clean)
-
-    print(f'For the playlist analyzed, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
+        # medians_clean = np.array(medians_clean)
+        playlist_name = get_playlist_name(playlist_id_list[i], headers)
+        print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
 
     return np.mean(medians)
 
@@ -314,5 +317,17 @@ def get_artists_top_songs(id_list: list, headers_: dict, batch_size: int):
 
     return clean_top_songs
 
+
+def get_playlist_name(playlist_id: str, headers_: dict):
+
+    playlist_name_raw = requests.get(f'{BASE_URL}playlists/{playlist_id}', headers=headers_)
+    playlist_name_clean = playlist_name_raw.json()['name']
+
+    return playlist_name_clean
+
+
 if __name__=='__main__':
-    main(config.friends[0], config.id_, config.secret)
+    main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
+
+# if __name__=='__main__':
+#     main('77hcwtonbaAiEDa8nIquGo, 1TWD0ULOlV2EEuszrlOsRh', config.id_, config.secret)
