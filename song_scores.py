@@ -6,24 +6,15 @@ import sys
 import re
 BASE_URL = 'https://api.spotify.com/v1/'
 AUTH_URL = 'https://accounts.spotify.com/api/token'
-# FRIENDS = config.friends  # a list of user_ids
-# CLIENT_ID = config.id_  # id, supplied from spotify for developers; replace with your own
-# CLIENT_SECRET = config.secret  # secret, supplied from spotify for developers; replace with your own
-
-### Roadmap
-# - with a user's id, get a list of their playlists
-# - take a playlist from the preceding list (or an individual track?) and get the artist # of followers and popularity; the artist's top tracks; the track's popularity (do this for each track in the playlist)
-#  - calculate indieness metric (maybe like 1/log(followers) * track popularity or something like that) for each track
-#   - aggregate all indieness scores (some sort of average, maybe the median?)
 
 ### TODO -- add type hints to functions
-
 
 def main(playlist_ids: str, client_id: str, client_secret: str):
     access_token, headers = auth_stuff(client_id, client_secret)
 
     # playlists = get_all_playlist_ids(user_id, headers)
     
+    # split the string into a list if necessary
     playlist_id_list = re.sub('\s*', '', playlist_ids).split(',')
 
     song_ids_all, album_ids_all, artist_ids_all = [], [], []
@@ -37,8 +28,6 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
 
         medians = []
 
-        ### TODO -- basic functionality works but this loop needs lots of work to run correctly/successfully
-        ### 
         for k in range(0, len(song_ids_all)):
             song_popularities = get_popularities(song_ids_all[k], headers, 'tracks', 50)
             
@@ -48,25 +37,8 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
 
             album_popularities = get_popularities(album_ids_all[k], headers, 'albums', 20)
 
-            # TODO -- decide if it's worth it to run this one, or if it'll slow it down too much
-            # artists_top_songs = get_artists_top_songs(artist_ids, headers, 20)
-
-            ### TODO -- come up with a good way of quantifying the relationship between albums and songs
-            # what's currently in here doesn't make much sense lol
-            # something like the following might work:
-            # the higher the better on the indie-ness scale (i.e., 0 = v mainstream, 100? = the most indie - not sure how to standardize scores though)
-            # np.log(1/song_pop) + np.log(avg(1/artist_followers)) + np.log(1/album_popularities) + [check if song is in artist's most popular songs (this slows the program down significantly though)]
-            # OK SO - the way it's set up is not scaled 1-100 or something like that. 
-            # i think i could change the formula to be like sum((100-song_pop[i])+(100-artist_pop[i])+(100-album_pop[i])) + (100*(1-1/log(followers))) 
-            # (use a base 10 log probably - check what numpy's is)
-
-            # np.log(1/song_popularities[i]) + np.log(1/np.mean(np.array(artist_followers[i]))) + np.log(1/album_popularities[i])
             all_raw_metrics = []
             for j in range(0, len(song_popularities)):
-                # jth_song_metric = np.log((song_popularities[j] + .1))
-                # + np.log((np.mean(artist_popularities[j]) + .1))
-                # + np.log((np.mean(np.array(artist_followers[j])) + .1))
-                # + np.log((album_popularities[j] + .1))
                 jth_song_metric = sum(
                     [(100 - song_popularities[j]),
                     (100 - np.mean(artist_popularities[j])),
@@ -74,34 +46,14 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
                     ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
                 ) / 4
                 # append all metric scores to a list for each playlist
-                # if not np.isnan(jth_song_metric):
-                #     all_raw_metrics.append(jth_song_metric)
                 all_raw_metrics.append(jth_song_metric)
             
             medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
-        
-        # mask = np.isnan(np.array(medians)) * 1
-        
-        # medians_clean = medians[mask[mask == 0]]
 
-        # medians_clean = np.array(medians_clean)
         playlist_name = get_playlist_name(playlist_id_list[i], headers)
         print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
 
     return np.mean(medians)
-
-    # song_vec = np.array(song_popularities) / 100
-    # artist_vec = np.array(artist_popularities) / 100
-    # artist_followers_vec = np.log(np.array(artist_followers).astype(float))
-    # album_vec = np.array(album_popularities) / 100
-
-    # relative_song_popularity_album = song_vec / album_vec  # relative to how popular the album is, how popular is the song?
-    # relative_song_popularity_artist = song_vec / artist_vec  # relative to how popular the artist is, how popular is the song?
-    # relative_song_popularity_followers = song_vec * (np.log(artist_followers_vec))
-    
-    # print('swag')
-
-    # return song_popularities
 
 
 def auth_stuff(client_id: str, client_secret: str):
@@ -117,13 +69,13 @@ def auth_stuff(client_id: str, client_secret: str):
     access_token_ = auth_response_data['access_token']
 
     headers_ = {
-        'Authorization': f'Bearer {access_token_}'#.format(token=access_token)
+        'Authorization': f'Bearer {access_token_}'
     }
 
     return access_token_, headers_  # does this need the access_token_ to be returned?
 
 
-def get_all_playlist_ids(user: str, headers_: dict)->list:
+def get_all_playlist_ids(user: str, headers_: dict)->list:  # THIS FUNCTION IS NOT CALLED IN THE FINAL VERSION
     # for now, user should be an element in the FRIENDS list
     returned = requests.get(f'{BASE_URL}users/{user}/playlists?limit=50', headers=headers_)
 
