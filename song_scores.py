@@ -96,7 +96,6 @@ def playlist_processor(playlist_id: str, headers_: dict):
     song_ids = []
     album_ids = []
     artist_ids = []
-    # song_and_artist_ids_ = {}
 
     ### TODO -- error handling needs some love. this is a really sloppy fix rn.
     try:
@@ -105,7 +104,6 @@ def playlist_processor(playlist_id: str, headers_: dict):
             album_ids.append(songs[i]['track']['album']['id'])  # add all the album ids to a list
             artists = songs[i]['track']['artists']  # add all the artist ids to a list
             artist_id_subsets = []  # leave this here for when u go back to fix the artist api calls
-            # artist_ids.append(artists[0]['id'])  # this doesn't account for songs with more than 1 artist (like ones w features)
 
             for j in range(0, len(artists)):
                 artist_id_subsets.append(artists[j]['id'])
@@ -250,12 +248,9 @@ def get_artists_top_songs(id_list: list, headers_: dict, batch_size: int):
         lengths.append(len(i))
         starred = [*starred, *i]
 
-    # ids_new = nest_id_lists(starred, batch_size)
-
     top_songs = []
 
     for artist in starred:
-        # subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
         top_songs_raw = requests.get(f'https://api.spotify.com/v1/artists/{artist}/top-tracks?market=US', headers=headers_)  #requests.get(f'{BASE_URL}artists/{starred[0]}/top-tracks', headers=headers_)
         for j in range(0, len(top_songs_raw.json()['tracks'])):
             top_songs.append(top_songs_raw.json()['tracks'][j]['album']['id'])
