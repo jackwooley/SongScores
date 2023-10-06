@@ -40,7 +40,7 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             all_raw_metrics = []
             for j in range(0, len(song_popularities)):
                 jth_song_metric = sum(
-                    [(100 - song_popularities[j]),
+                    [(100 - song_popularities[j]),  # get the 
                     (100 - np.mean(artist_popularities[j])),
                     (100 - np.mean(album_popularities[j])),
                     ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
@@ -51,7 +51,10 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
 
         playlist_name = get_playlist_name(playlist_id_list[i], headers)
-        print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
+        if type(playlist_name) != str:
+            print(f'\nYour playlist score could not be calculated. Be sure the playlist is public before trying again.')
+        else:
+            print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
 
     return np.mean(medians)
 
@@ -94,7 +97,7 @@ def playlist_processor(playlist_id: str, headers_: dict):
     try:
         songs = playlist_info.json()['items']
     except KeyError as ke:
-        print(f'\nOh no! This message indicates an error ({ke=}) occurred. Make sure the playlist you\'re attempting to analyze is not private.\n')
+        print(f'\nOh no! This message indicates an error ({ke=}) occurred. Make sure the playlist you\'re attempting to analyze is not private.')
         songs = []
 
     song_ids = []
@@ -115,7 +118,7 @@ def playlist_processor(playlist_id: str, headers_: dict):
             artist_ids.append(artist_id_subsets)
     
     except TypeError as te:  # TODO -- is there a better way to deal with empty lists being returned
-        print(f'iteration {i} caused a problem: {te=}. \nDoes this playlist contain songs?')
+        print(f'iteration {i} caused a problem: {te=}. Does this playlist contain songs?')
         if len(song_ids) == i-1:
             song_ids[i] = None
         if len(album_ids) == i-1:
@@ -275,8 +278,10 @@ def get_playlist_name(playlist_id: str, headers_: dict):
     try:
         playlist_name_clean = playlist_name_raw.json()['name']
     except KeyError as ke:
-        print('\nThere seems to be a problem retrieving the playlist name. Double-check to make sure the playlist ID is correct, and that it is not set to private.\n')
-        playlist_name_clean = ''
+        print('\nThere seems to be a problem retrieving the playlist name. Double-check to make sure the playlist ID is correct, and that it is not set to private.')
+        playlist_name_clean = RuntimeWarning
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
     return playlist_name_clean
 
@@ -285,4 +290,4 @@ if __name__=='__main__':
     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
 
 # if __name__=='__main__':
-#     main('5H9MvbzhUZmsXeZSlqscV0', config.id_, config.secret)
+#     main('3rxYhTMHdcZGRiUFqQgzDY, 5H9MvbzhUZmsXeZSlqscV0', config.id_, config.secret)
