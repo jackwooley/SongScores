@@ -91,7 +91,11 @@ def playlist_processor(playlist_id: str, headers_: dict):
     playlist_info = requests.get(f'{BASE_URL}playlists/{playlist_id}/tracks', headers=headers_)
 
     # playlist info will be what's returned from the api call in get_all_playlist_ids
-    songs = playlist_info.json()['items']
+    try:
+        songs = playlist_info.json()['items']
+    except KeyError as ke:
+        print(f'\nOh no! This message indicates an error ({ke=}) occurred. Make sure the playlist you\'re attempting to analyze is not private.\n')
+        songs = []
 
     song_ids = []
     album_ids = []
@@ -111,7 +115,7 @@ def playlist_processor(playlist_id: str, headers_: dict):
             artist_ids.append(artist_id_subsets)
     
     except TypeError as te:  # TODO -- is there a better way to deal with empty lists being returned
-        print(f'iteration {i} caused a problem: {te=}')
+        print(f'iteration {i} caused a problem: {te=}. \nDoes this playlist contain songs?')
         if len(song_ids) == i-1:
             song_ids[i] = None
         if len(album_ids) == i-1:
@@ -268,7 +272,11 @@ def get_artists_top_songs(id_list: list, headers_: dict, batch_size: int):
 def get_playlist_name(playlist_id: str, headers_: dict):
 
     playlist_name_raw = requests.get(f'{BASE_URL}playlists/{playlist_id}', headers=headers_)
-    playlist_name_clean = playlist_name_raw.json()['name']
+    try:
+        playlist_name_clean = playlist_name_raw.json()['name']
+    except KeyError as ke:
+        print('\nThere seems to be a problem retrieving the playlist name. Double-check to make sure the playlist ID is correct, and that it is not set to private.\n')
+        playlist_name_clean = ''
 
     return playlist_name_clean
 
@@ -277,4 +285,4 @@ if __name__=='__main__':
     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
 
 # if __name__=='__main__':
-#     main('77hcwtonbaAiEDa8nIquGo, 1TWD0ULOlV2EEuszrlOsRh', config.id_, config.secret)
+#     main('5H9MvbzhUZmsXeZSlqscV0', config.id_, config.secret)

@@ -12,3 +12,5 @@ To find the playlist ids, open Spotify in a browser, open a playlist, and click 
 <pre>
 https://open.spotify.com/playlist/<b>5439HoBFYizp8yk82qOJJS<b>
 </pre>
+
+*Note: This will not work with playlists that are not public on Spotify. It will return an error instead.*
