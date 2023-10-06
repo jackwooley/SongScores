@@ -31,6 +31,18 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
         for k in range(0, len(song_ids_all)):
             song_popularities = get_popularities(song_ids_all[k], headers, 'tracks', 50)
             
+            more_features = get_more_features(song_ids_all[k], headers, 'audio-features', 50)
+
+            ### TODO -- add cool metrics with those features: 
+            # stuff like most important variable (in random forest or regression, depending on data dists)
+            # maybe n_clusters if there's enough for k-means or dbscan or something
+            # some sort of similarity metric - how "alike" are all your songs? 
+            # use some distance metric to calculate "mean" song profile and select mean song
+                # with this idea: 1. calculate mean song 2. find song that's closest to it 3. pull track name and artist and return it 
+                    # (would require an update to not drop track_id but that wouldn't be too hard)
+            
+            ### TODO -- add some "loading" or other progress messages lol
+
             artist_popularities = get_artist_popularities(artist_ids_all[k], headers)
 
             artist_followers = get_artist_follower_count(artist_ids_all[k], headers, 50)
@@ -189,6 +201,28 @@ def get_popularities(id_list: list, headers_: dict, endpoint: str, batch_size: i
     return popularity_list
 
 
+def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: int):
+    #  endpoint should be either 'tracks' or 'albums'
+    try:
+        ids_new = nest_id_lists(id_list, batch_size)
+        dfs_to_concat = []
+
+        for list_ in ids_new:
+            subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
+            features_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
+            music_data = pd.json_normalize(features_raw.json()['audio_features'])
+            music_data.drop(['type', 'id', 'uri', 'track_href', 'analysis_url'], axis=1, inplace=True)
+            dfs_to_concat.append(music_data)
+            # useful_music_features
+
+        useful_music_features = pd.concat(dfs_to_concat)
+    
+    except KeyError as k:
+        print(f'{k=}. Did you use the wrong endpoint?')
+
+    return useful_music_features
+
+
 def get_artist_popularities(id_list: list, headers_: dict):
     
     popularity_list = []
@@ -286,8 +320,8 @@ def get_playlist_name(playlist_id: str, headers_: dict):
     return playlist_name_clean
 
 
-if __name__=='__main__':
-    main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
-
 # if __name__=='__main__':
-#     main('3rxYhTMHdcZGRiUFqQgzDY, 5H9MvbzhUZmsXeZSlqscV0', config.id_, config.secret)
+#     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
+
+if __name__=='__main__':
+    main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
