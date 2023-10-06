@@ -320,8 +320,8 @@ def get_playlist_name(playlist_id: str, headers_: dict):
     return playlist_name_clean
 
 
-# if __name__=='__main__':
-#     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
-
 if __name__=='__main__':
-    main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
+    main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
+
+# if __name__=='__main__':
+#     main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
