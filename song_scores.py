@@ -1,3 +1,6 @@
+from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.cluster import DBSCAN
+from sklearn import preprocessing
 import pandas as pd
 import numpy as np
 import requests
@@ -33,7 +36,9 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             
             more_features = get_more_features(song_ids_all[k], headers, 'audio-features', 50)
 
-            playlist_metadata = cool_math(more_features)
+            scaled_features, ids = preprocess_the_data(more_features)
+
+            track_message = get_mean_song(scaled_features, ids, headers)
 
             ### TODO -- add cool metrics with those features: 
             # stuff like most important variable (in random forest or regression, depending on data dists)
@@ -69,6 +74,7 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             print(f'\nYour playlist score could not be calculated. Be sure the playlist is public before trying again.')
         else:
             print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
+            print(f'\n{track_message}')
 
     return np.mean(medians)
 
@@ -213,7 +219,7 @@ def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: 
             subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
             features_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
             music_data = pd.json_normalize(features_raw.json()['audio_features'])
-            music_data.drop(['type', 'id', 'uri', 'track_href', 'analysis_url'], axis=1, inplace=True)
+            music_data.drop(['type', 'id', 'uri', 'analysis_url', 'time_signature'], axis=1, inplace=True)
             dfs_to_concat.append(music_data)
             # useful_music_features
 
@@ -225,22 +231,36 @@ def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: 
     return useful_music_features
 
 
-def cool_math(df: pd.DataFrame):
-    # if df.shape[0] > 60:
-    from sklearn.cluster import DBSCAN
-    dbscan = DBSCAN(min_samples=4)
-    dbscan.fit(df)
-    labs = dbscan.labels_
-    n_clusters = len(labs)
-    np.mean(df)
-    print('for debugging, line 236')
+def preprocess_the_data(df: pd.DataFrame):
+    track_ids = df['track_href']
+    del df['track_href']
+    # scaler = preprocessing.StandardScaler().fit(df)
+    # scaled_data = scaler.transform(df)
+    # numpy_data = np.array(df)
+    # normed_data = preprocessing.normalize(numpy_data, axis=1, norm='l2')
+    scaled_data = np.array(df)
 
-    # return cluster number if > 60 rows in dataframe
-    # return "mean" song no matter how many rows (bust that out into another function)
-    # for loop for calculating cosine similarities and comparing to the mean
-    # get track id from df and then return track_name for that song ("mean" song of the playlist)
+    return scaled_data, track_ids
 
 
+def get_mean_song(df: np.array, ids: pd.Series, headers_):
+    
+    ids = np.array(ids).reshape(1, -1)
+    mean_ = np.mean(df, axis=0)
+    max_similarity = 0
+    for i in range(0, df.shape[0]):
+        similarity = cosine_similarity(np.array(df[i,:]).reshape(1, -1), np.array(mean_).reshape(1, -1))
+        if similarity > max_similarity:
+            max_similarity = similarity
+            mean_song = ids[0][i]
+
+    ms = requests.get(mean_song, headers=headers_)
+    track_name = ms.json()['name']
+    artist = ms.json()['album']['artists'][0]['name']  ### TODO -- update this to support multiple artists
+
+    track_message = f'The song that best represents this playlist is {track_name} by {artist}.'
+
+    return track_message
 
 
 def get_artist_popularities(id_list: list, headers_: dict):
