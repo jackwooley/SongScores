@@ -33,6 +33,8 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             
             more_features = get_more_features(song_ids_all[k], headers, 'audio-features', 50)
 
+            playlist_metadata = cool_math(more_features)
+
             ### TODO -- add cool metrics with those features: 
             # stuff like most important variable (in random forest or regression, depending on data dists)
             # maybe n_clusters if there's enough for k-means or dbscan or something
@@ -221,6 +223,24 @@ def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: 
         print(f'{k=}. Did you use the wrong endpoint?')
 
     return useful_music_features
+
+
+def cool_math(df: pd.DataFrame):
+    # if df.shape[0] > 60:
+    from sklearn.cluster import DBSCAN
+    dbscan = DBSCAN(min_samples=4)
+    dbscan.fit(df)
+    labs = dbscan.labels_
+    n_clusters = len(labs)
+    np.mean(df)
+    print('for debugging, line 236')
+
+    # return cluster number if > 60 rows in dataframe
+    # return "mean" song no matter how many rows (bust that out into another function)
+    # for loop for calculating cosine similarities and comparing to the mean
+    # get track id from df and then return track_name for that song ("mean" song of the playlist)
+
+
 
 
 def get_artist_popularities(id_list: list, headers_: dict):
