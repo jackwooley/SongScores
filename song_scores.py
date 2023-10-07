@@ -43,11 +43,7 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             ### TODO -- add cool metrics with those features: 
             # stuff like most important variable (in random forest or regression, depending on data dists)
             # maybe n_clusters if there's enough for k-means or dbscan or something
-            # some sort of similarity metric - how "alike" are all your songs? 
-            # use some distance metric to calculate "mean" song profile and select mean song
-                # with this idea: 1. calculate mean song 2. find song that's closest to it 3. pull track name and artist and return it 
-                    # (would require an update to not drop track_id but that wouldn't be too hard)
-            
+
             ### TODO -- add some "loading" or other progress messages lol
 
             artist_popularities = get_artist_popularities(artist_ids_all[k], headers)
@@ -236,8 +232,7 @@ def preprocess_the_data(df: pd.DataFrame):
     del df['track_href']
     # scaler = preprocessing.StandardScaler().fit(df)
     # scaled_data = scaler.transform(df)
-    # numpy_data = np.array(df)
-    # normed_data = preprocessing.normalize(numpy_data, axis=1, norm='l2')
+    # I didn't scale the data, since it seemed to be throwing off the similarity metric when I was doing it.
     scaled_data = np.array(df)
 
     return scaled_data, track_ids
