@@ -1,3 +1,6 @@
+from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.cluster import DBSCAN
+from sklearn import preprocessing
 import pandas as pd
 import numpy as np
 import requests
@@ -31,6 +34,22 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
         for k in range(0, len(song_ids_all)):
             song_popularities = get_popularities(song_ids_all[k], headers, 'tracks', 50)
             
+            more_features = get_more_features(song_ids_all[k], headers, 'audio-features', 50)
+
+            scaled_features, ids = preprocess_the_data(more_features)
+
+            track_message = get_mean_song(scaled_features, ids, headers)
+
+            ### TODO -- add cool metrics with those features: 
+            # stuff like most important variable (in random forest or regression, depending on data dists)
+            # maybe n_clusters if there's enough for k-means or dbscan or something
+            # some sort of similarity metric - how "alike" are all your songs? 
+            # use some distance metric to calculate "mean" song profile and select mean song
+                # with this idea: 1. calculate mean song 2. find song that's closest to it 3. pull track name and artist and return it 
+                    # (would require an update to not drop track_id but that wouldn't be too hard)
+            
+            ### TODO -- add some "loading" or other progress messages lol
+
             artist_popularities = get_artist_popularities(artist_ids_all[k], headers)
 
             artist_followers = get_artist_follower_count(artist_ids_all[k], headers, 50)
@@ -55,6 +74,7 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             print(f'\nYour playlist score could not be calculated. Be sure the playlist is public before trying again.')
         else:
             print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
+            print(f'\n{track_message}')
 
     return np.mean(medians)
 
@@ -189,6 +209,60 @@ def get_popularities(id_list: list, headers_: dict, endpoint: str, batch_size: i
     return popularity_list
 
 
+def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: int):
+    #  endpoint should be either 'tracks' or 'albums'
+    try:
+        ids_new = nest_id_lists(id_list, batch_size)
+        dfs_to_concat = []
+
+        for list_ in ids_new:
+            subset_of_ids = str(list_).strip('[\'').strip('\']').replace('\', \'', ',')#.replace('\'], [\'', '\',\'')
+            features_raw = requests.get(f'{BASE_URL}{endpoint}/?ids={subset_of_ids}', headers=headers_)
+            music_data = pd.json_normalize(features_raw.json()['audio_features'])
+            music_data.drop(['type', 'id', 'uri', 'analysis_url', 'time_signature'], axis=1, inplace=True)
+            dfs_to_concat.append(music_data)
+            # useful_music_features
+
+        useful_music_features = pd.concat(dfs_to_concat)
+    
+    except KeyError as k:
+        print(f'{k=}. Did you use the wrong endpoint?')
+
+    return useful_music_features
+
+
+def preprocess_the_data(df: pd.DataFrame):
+    track_ids = df['track_href']
+    del df['track_href']
+    # scaler = preprocessing.StandardScaler().fit(df)
+    # scaled_data = scaler.transform(df)
+    # numpy_data = np.array(df)
+    # normed_data = preprocessing.normalize(numpy_data, axis=1, norm='l2')
+    scaled_data = np.array(df)
+
+    return scaled_data, track_ids
+
+
+def get_mean_song(df: np.array, ids: pd.Series, headers_):
+    
+    ids = np.array(ids).reshape(1, -1)
+    mean_ = np.mean(df, axis=0)
+    max_similarity = 0
+    for i in range(0, df.shape[0]):
+        similarity = cosine_similarity(np.array(df[i,:]).reshape(1, -1), np.array(mean_).reshape(1, -1))
+        if similarity > max_similarity:
+            max_similarity = similarity
+            mean_song = ids[0][i]
+
+    ms = requests.get(mean_song, headers=headers_)
+    track_name = ms.json()['name']
+    artist = ms.json()['album']['artists'][0]['name']  ### TODO -- update this to support multiple artists
+
+    track_message = f'The song that best represents this playlist is {track_name} by {artist}.'
+
+    return track_message
+
+
 def get_artist_popularities(id_list: list, headers_: dict):
     
     popularity_list = []
@@ -290,4 +364,4 @@ if __name__=='__main__':
     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
 
 # if __name__=='__main__':
-#     main('3rxYhTMHdcZGRiUFqQgzDY, 5H9MvbzhUZmsXeZSlqscV0', config.id_, config.secret)
+#     main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
