@@ -1,5 +1,4 @@
-from sklearn.metrics.pairwise import cosine_similarity
-# from sklearn.cluster import DBSCAN
+from sklearn.metrics.pairwise import euclidean_distances
 from sklearn import preprocessing
 import pandas as pd
 import numpy as np
@@ -39,12 +38,6 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
             scaled_features, ids = preprocess_the_data(more_features)
 
             track_message = get_mean_song(scaled_features, ids, headers)
-
-            ### TODO -- add cool metrics with those features: 
-            # stuff like most important variable (in random forest or regression, depending on data dists)
-            # maybe n_clusters if there's enough for k-means or dbscan or something
-
-            ### TODO -- add some "loading" or other progress messages lol
 
             artist_popularities = get_artist_popularities(artist_ids_all[k], headers)
 
@@ -230,23 +223,20 @@ def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: 
 def preprocess_the_data(df: pd.DataFrame):
     track_ids = df['track_href']
     del df['track_href']
-    # scaler = preprocessing.StandardScaler().fit(df)
-    # scaled_data = scaler.transform(df)
-    # I didn't scale the data, since it seemed to be throwing off the similarity metric when I was doing it.
-    scaled_data = np.array(df)
+    data_array = np.array(df)
 
-    return scaled_data, track_ids
+    return data_array, track_ids
 
 
 def get_mean_song(df: np.array, ids: pd.Series, headers_):
     
     ids = np.array(ids).reshape(1, -1)
     mean_ = np.mean(df, axis=0)
-    max_similarity = 0
+    min_distance = 1000000  # an arbitrary value that should not ever be exceeded based on the range of the values that the variables can take (+/-10)
     for i in range(0, df.shape[0]):
-        similarity = cosine_similarity(np.array(df[i,:]).reshape(1, -1), np.array(mean_).reshape(1, -1))
-        if similarity > max_similarity:
-            max_similarity = similarity
+        distance = euclidean_distances(np.array(df[i,:]).reshape(1, -1), np.array(mean_).reshape(1, -1))
+        if distance < min_distance:
+            min_distance = distance
             mean_song = ids[0][i]
 
     ms = requests.get(mean_song, headers=headers_)
@@ -355,8 +345,8 @@ def get_playlist_name(playlist_id: str, headers_: dict):
     return playlist_name_clean
 
 
-if __name__=='__main__':
-    main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
-
 # if __name__=='__main__':
-#     main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
+#     main(sys.argv[1], config.id_, config.secret)  # requires a comma-separated list of values as the input (something like 'id1, id2, id3')
+
+if __name__=='__main__':
+    main('2wIJNW0Zn7LK6mi2slwdAF', config.id_, config.secret)
