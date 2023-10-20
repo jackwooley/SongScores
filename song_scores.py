@@ -1,5 +1,5 @@
 from sklearn.metrics.pairwise import euclidean_distances
-from sklearn import preprocessing
+from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import numpy as np
 import requests
@@ -50,19 +50,20 @@ def main(playlist_ids: str, client_id: str, client_secret: str):
                 jth_song_metric = sum(
                     [(100 - song_popularities[j]),  # get the 
                     (100 - np.mean(artist_popularities[j])),
-                    (100 - np.mean(album_popularities[j])),
-                    ((80 - (np.mean(artist_followers[j]) / 1000000)) * 1.25)]
+                    (100 - album_popularities[j]),
+                    ((90 - (np.mean(artist_followers[j]) / 1000000)) * 1.11111111)]  # last i checked, taylor swift had the most followers, with roughly 90 million
+                                                                                     # this allows her to be the top end of the spectrum, and then multiplying by 1.111111 adjusts it so the scale is roughly 0-100
                 ) / 4
                 # append all metric scores to a list for each playlist
                 all_raw_metrics.append(jth_song_metric)
             
-            medians.append(np.median(all_raw_metrics)) # get the median score for a given playlist
+            median_ = np.median(all_raw_metrics) # get the median score for a given playlist
 
         playlist_name = get_playlist_name(playlist_id_list[i], headers)
         if type(playlist_name) != str:
             print(f'\nYour playlist score could not be calculated. Be sure the playlist is public before trying again.')
         else:
-            print(f'For the playlist {playlist_name}, this is your indieness score:\n{np.mean(medians)}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
+            print(f'For the playlist {playlist_name}, this is your indieness score:\n{median_}\nIt is scaled from 0-100, with 100 being the most indie and 0 being the least indie.')
             print(f'\n{track_message}')
 
     return np.mean(medians)
@@ -105,6 +106,11 @@ def playlist_processor(playlist_id: str, headers_: dict):
     # playlist info will be what's returned from the api call in get_all_playlist_ids
     try:
         songs = playlist_info.json()['items']
+        total_songs = playlist_info.json()['total']
+        limit = playlist_info.json()['limit']
+
+    ### TODO -- fix the way that this is handling playlists of length > 100
+
     except KeyError as ke:
         print(f'\nOh no! This message indicates an error ({ke=}) occurred. Make sure the playlist you\'re attempting to analyze is not private.')
         songs = []
@@ -223,7 +229,10 @@ def get_more_features(id_list: list, headers_: dict, endpoint: str, batch_size: 
 def preprocess_the_data(df: pd.DataFrame):
     track_ids = df['track_href']
     del df['track_href']
-    data_array = np.array(df)
+
+    mms = MinMaxScaler()
+    scaled = mms.fit_transform(df)
+    data_array = np.array(scaled)
 
     return data_array, track_ids
 
@@ -232,7 +241,7 @@ def get_mean_song(df: np.array, ids: pd.Series, headers_):
     
     ids = np.array(ids).reshape(1, -1)
     mean_ = np.mean(df, axis=0)
-    min_distance = 1000000  # an arbitrary value that should not ever be exceeded based on the range of the values that the variables can take (+/-10)
+    min_distance = 1000000  # arbitrary really big distance that all other distances will be less than
     for i in range(0, df.shape[0]):
         distance = euclidean_distances(np.array(df[i,:]).reshape(1, -1), np.array(mean_).reshape(1, -1))
         if distance < min_distance:

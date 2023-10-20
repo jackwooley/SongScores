@@ -4,3 +4,4 @@ config.py
 scratch_paper.ipynb
 bash.exe.stackdump
 __pycache__/
+.ipynb_checkpoints
